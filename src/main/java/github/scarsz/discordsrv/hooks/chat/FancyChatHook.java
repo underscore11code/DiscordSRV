@@ -1,6 +1,6 @@
 /*
  * DiscordSRV - A Minecraft to Discord and back link plugin
- * Copyright (C) 2016-2019 Austin "Scarsz" Shapiro
+ * Copyright (C) 2016-2020 Austin "Scarsz" Shapiro
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -31,13 +31,9 @@ import org.bukkit.ChatColor;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
-import org.bukkit.event.Listener;
+import org.bukkit.plugin.Plugin;
 
-public class FancyChatHook implements Listener {
-
-    public FancyChatHook() {
-        PluginUtil.pluginHookIsEnabled("evernifefancychat");
-    }
+public class FancyChatHook implements ChatHook {
 
     @EventHandler(priority = EventPriority.MONITOR)
     public void onMessage(FancyChatSendChannelMessageEvent event) {
@@ -53,7 +49,8 @@ public class FancyChatHook implements Listener {
         DiscordSRV.getPlugin().processChatMessage(sender, event.getMessage(), event.getChannel().getName(), false);
     }
 
-    public static void broadcastMessageToChannel(String channel, String message) {
+    @Override
+    public void broadcastMessageToChannel(String channel, String message) {
         FancyChannel fancyChannel = FancyChatApi.getChannel(channel);
 
         if (fancyChannel == null) return; // no suitable channel found
@@ -65,10 +62,15 @@ public class FancyChatHook implements Listener {
                 .replace("%message%", message);
 
         if (DiscordSRV.config().getBoolean("Experiment_MCDiscordReserializer_ToMinecraft")) {
-            FancyChatApi.sendMessage(LegacyComponentSerializer.INSTANCE.serialize(MinecraftSerializer.INSTANCE.serialize(plainMessage)), fancyChannel);
+            FancyChatApi.sendMessage(LegacyComponentSerializer.legacy().serialize(MinecraftSerializer.INSTANCE.serialize(plainMessage)), fancyChannel);
         } else {
             FancyChatApi.sendMessage(ChatColor.translateAlternateColorCodes('&', plainMessage), fancyChannel);
         }
+    }
+
+    @Override
+    public Plugin getPlugin() {
+        return PluginUtil.getPlugin("EverNifeFancyChat");
     }
 
 }

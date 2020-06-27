@@ -1,7 +1,27 @@
+/*
+ * DiscordSRV - A Minecraft to Discord and back link plugin
+ * Copyright (C) 2016-2020 Austin "Scarsz" Shapiro
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+
 package github.scarsz.discordsrv.modules.requirelink;
 
+import alexh.weak.Dynamic;
 import github.scarsz.discordsrv.DiscordSRV;
 import github.scarsz.discordsrv.util.DiscordUtil;
+import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Member;
 import net.dv8tion.jda.api.entities.Role;
 import org.apache.commons.lang3.StringUtils;
@@ -67,6 +87,7 @@ public class RequireLinkModule implements Listener {
                 Member botMember = DiscordSRV.getPlugin().getMainGuild().getSelfMember();
                 String botName = botMember.getEffectiveName() + "#" + botMember.getUser().getDiscriminator();
                 String code = DiscordSRV.getPlugin().getAccountLinkManager().generateCode(playerUuid);
+                String inviteLink = DiscordSRV.config().getString("DiscordInviteLink");
 
                 DiscordSRV.debug("Player " + playerName + " is NOT linked to a Discord account, denying login");
                 disallow.accept(
@@ -74,8 +95,52 @@ public class RequireLinkModule implements Listener {
                         ChatColor.translateAlternateColorCodes('&', DiscordSRV.config().getString("Require linked account to play.Not linked message"))
                                 .replace("{BOT}", botName)
                                 .replace("{CODE}", code)
+                                .replace("{INVITE}", inviteLink)
                 );
                 return;
+            }
+
+            Dynamic mustBeInDiscordServerOption = DiscordSRV.config().dget("Require linked account to play.Must be in Discord server");
+            if (mustBeInDiscordServerOption.is(boolean.class)) {
+                boolean mustBePresent = mustBeInDiscordServerOption.as(boolean.class);
+                boolean isPresent = DiscordUtil.getMemberById(discordId) != null;
+                if (mustBePresent && !isPresent) {
+                    disallow.accept(
+                            AsyncPlayerPreLoginEvent.Result.KICK_WHITELIST.name(),
+                            ChatColor.translateAlternateColorCodes('&', DiscordSRV.config().getString("Require linked account to play.Messages.Not in server"))
+                                    .replace("{INVITE}", DiscordSRV.config().getString("DiscordInviteLink"))
+                    );
+                    return;
+                }
+            } else {
+                Set<String> targets = new HashSet<>();
+
+                if (mustBeInDiscordServerOption.isList()) {
+                    mustBeInDiscordServerOption.children().forEach(dynamic -> targets.add(dynamic.toString()));
+                } else {
+                    targets.add(mustBeInDiscordServerOption.convert().intoString());
+                }
+
+                for (String guildId : targets) {
+                    try {
+                        Guild guild = DiscordUtil.getJda().getGuildById(guildId);
+                        if (guild != null) {
+                            boolean inServer = guild.getMemberById(discordId) != null;
+                            if (!inServer) {
+                                disallow.accept(
+                                        AsyncPlayerPreLoginEvent.Result.KICK_WHITELIST.name(),
+                                        ChatColor.translateAlternateColorCodes('&', DiscordSRV.config().getString("Require linked account to play.Messages.Not in server"))
+                                                .replace("{INVITE}", DiscordSRV.config().getString("DiscordInviteLink"))
+                                );
+                                return;
+                            }
+                        } else {
+                            DiscordSRV.debug("Failed to get Discord server by ID " + guildId + ": bot is not in server");
+                        }
+                    } catch (NumberFormatException e) {
+                        DiscordSRV.debug("Failed to get Discord server by ID " + guildId + ": not a parsable long");
+                    }
+                }
             }
 
             List<String> subRoleIds = DiscordSRV.config().getStringList("Require linked account to play.Subscriber role.Subscriber roles");
@@ -131,7 +196,7 @@ public class RequireLinkModule implements Listener {
         }
 
         DiscordSRV.info("Kicking player " + player.getName() + " for unlinking their accounts");
-        player.kickPlayer(ChatColor.translateAlternateColorCodes('&', getUnlinkedKickMessage()));
+        Bukkit.getScheduler().runTask(DiscordSRV.getPlugin(), () -> player.kickPlayer(ChatColor.translateAlternateColorCodes('&', getUnlinkedKickMessage())));
     }
 
     private boolean checkWhitelist() {

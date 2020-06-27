@@ -1,6 +1,6 @@
 /*
  * DiscordSRV - A Minecraft to Discord and back link plugin
- * Copyright (C) 2016-2019 Austin "Scarsz" Shapiro
+ * Copyright (C) 2016-2020 Austin "Scarsz" Shapiro
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -33,20 +33,20 @@ import org.bukkit.ChatColor;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
-import org.bukkit.event.Listener;
+import org.bukkit.plugin.Plugin;
 
 import java.util.stream.Collectors;
 
-public class LunaChatHook implements Listener {
-
-    public LunaChatHook() {
-        PluginUtil.pluginHookIsEnabled("lunachat");
-    }
+public class LunaChatHook implements ChatHook {
 
     @EventHandler(priority = EventPriority.MONITOR)
     public void onMessage(LunaChatChannelChatEvent event) {
         // make sure chat channel is registered with a destination
-        if (DiscordSRV.getPlugin().getDestinationTextChannelForGameChannelName(event.getChannel().getName()) == null) return;
+        String channelName = event.getChannel().getName();
+        if (DiscordSRV.getPlugin().getDestinationTextChannelForGameChannelName(channelName) == null) {
+            DiscordSRV.debug("Received a LunaChat message from non-defined channel: " + channelName);
+            return;
+        }
 
         // make sure message isn't just blank
         if (StringUtils.isBlank(event.getNgMaskedMessage())) return;
@@ -54,11 +54,13 @@ public class LunaChatHook implements Listener {
         // get sender player
         Player player = (event.getPlayer() != null) ? event.getPlayer().getPlayer() : null;
 
-        DiscordSRV.getPlugin().processChatMessage(player, event.getNgMaskedMessage(), event.getChannel().getName(), false);
+        DiscordSRV.getPlugin().processChatMessage(player, event.getNgMaskedMessage(), channelName, false);
     }
 
-    public static void broadcastMessageToChannel(String channel, String message) {
+    @Override
+    public void broadcastMessageToChannel(String channel, String message) {
         Channel chatChannel = LunaChat.getInstance().getLunaChatAPI().getChannel(channel);
+        DiscordSRV.debug("Resolved LunaChat channel " + channel + " -> " + chatChannel + (chatChannel != null ? " (" + chatChannel.getName() + ")" : ""));
         if (chatChannel == null) return; // no suitable channel found
 
         String plainMessage = LangUtil.Message.CHAT_CHANNEL_MESSAGE.toString()
@@ -69,7 +71,7 @@ public class LunaChatHook implements Listener {
                 .replace("%message%", message);
 
         if (DiscordSRV.config().getBoolean("Experiment_MCDiscordReserializer_ToMinecraft")) {
-            chatChannel.sendMessage(null, "", LegacyComponentSerializer.INSTANCE.serialize(MinecraftSerializer.INSTANCE.serialize(plainMessage)), true, "Discord");
+            chatChannel.sendMessage(null, "", LegacyComponentSerializer.legacy().serialize(MinecraftSerializer.INSTANCE.serialize(plainMessage)), true, "Discord");
         } else {
             chatChannel.sendMessage(null, "", ChatColor.translateAlternateColorCodes('&', plainMessage), true, "Discord");
         }
@@ -80,6 +82,11 @@ public class LunaChatHook implements Listener {
                                 .collect(Collectors.toList())
                                 .contains(player),
                 message);
+    }
+
+    @Override
+    public Plugin getPlugin() {
+        return PluginUtil.getPlugin("LunaChat");
     }
 
 }

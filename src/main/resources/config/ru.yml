@@ -16,13 +16,16 @@ Channels: {"global": "000000000000000000"}
 # Канал для вывода сообщений Консоли (НЕ ИМЯ); оставьте пустым, чтобы отключить консольный канал
 DiscordConsoleChannelId: "000000000000000000"
 
+# Ссылка на приглашение, отображаемая игрокам при использовании /discord, и на сообщении, отображаемом несвязанным игрокам, когда принудительная ссылка применяется
+DiscordInviteLink: "discord.gg/changethisintheconfig.yml"
+
 # Уровни отладки, не трогайте без надобности
 #
 # DebugLevel: 0 = без отладки, 1 = отладка, 2 = отладка с выводом ошибок
 #
 DebugLevel: 0
 DebugJDA: false
-DebugJDARestActionStacks: false
+DebugJDARestActions: false
 CancelConsoleCommandIfLoggingFailed: true
 RespectChatPlugins: true
 ForcedLanguage: none
@@ -31,8 +34,11 @@ Experiment_JdbcTablePrefix: "discordsrv"
 Experiment_JdbcUsername: "username"
 Experiment_JdbcPassword: "password"
 Experiment_WebhookChatMessageDelivery: false
-Experiment_WebhookChatMessageAvatarUrl: https://crafatar.com/avatars/{uuid}?overlay
-#Experiment_WebhookChatMessageAvatarUrl: https://minotar.net/helm/{username}
+Experiment_WebhookChatMessageUsernameFormat: "%displayname%"
+Experiment_WebhookChatMessageUsernameFromDiscord: false
+Experiment_EmbedAvatarUrl: https://minotar.net/helm/{uuid-nodashes}/{size}
+#Experiment_EmbedAvatarUrl: https://minotar.net/helm/{username}
+Experiment_WebhookChatMessageAvatarFromDiscord: false
 Experiment_MCDiscordReserializer_ToDiscord: false
 Experiment_MCDiscordReserializer_ToMinecraft: false
 Experiment_MCDiscordReserializer_InBroadcast: false
@@ -40,11 +46,14 @@ Experiment_Automatic_Color_Translations: false
 PrintGuildsAndChannels: true
 ForceTLSv12: true
 ParseEmojisToNames: true
+MaximumAttemptsForSystemDNSBeforeUsingFallbackDNS: 3
 
-# Отключить перехват событий других плагинов
-# Если на это нет веской причины, не трогайте эту настройку вовсе!
+# Подключаемые модули
 #
+# DisabledPluginHooks: перехватывать плагины, которые не будут использоваться (обычно это название плагина)
+# VentureChatBungee: включает функцию BungeeCord хука VentureChat (сообщения принимаются с каждого сервера, требуется, чтобы по крайней мере 1 игрок был в сети)
 DisabledPluginHooks: []
+VentureChatBungee: false
 
 # Game Information
 # Sets the "Playing: ______" indicator for the bot.
@@ -65,7 +74,7 @@ StatusUpdateRateInMinutes: 2
 # DiscordChatChannelMinecraftToDiscord: отправлять или не отправлять сообщения из чата сервера в канал чата (Minecraft -> Discord)
 # DiscordChatChannelTruncateLength: максимальная длина сообщений из Discord для отправки в чат Minecraft
 # DiscordChatChannelTranslateMentions: переводить или не переводить упоминания, такие как @Person для сообщений Minecraft в Discord
-# DiscordChatChannelPrefix: символ(ы), необходимые как префикс сообщений для их отправки из Minecraft в Discord (например, «!»)
+# DiscordChatChannelPrefixRequiredToProcessMessage: символ(ы), необходимые как префикс сообщений для их отправки из Minecraft в Discord (например, «!»)
 # DiscordChatChannelRolesAllowedToUseColorCodesInChat: список ролей, которым разрешено использовать цвета/форматирование в чате Discord в Minecraft
 # DiscordChatChannelBroadcastDiscordMessagesToConsole: выводить или нет обработанные Discord сообщения в игровую консоль
 # DiscordChatChannelRequireLinkedAccount: требовать или не требовать связать свой игровой аккаунт Minecraft с учетной записью Discord, чтобы разрешить отправку сообщений Discord в Minecraft
@@ -79,7 +88,7 @@ DiscordChatChannelDiscordToMinecraft: true
 DiscordChatChannelMinecraftToDiscord: true
 DiscordChatChannelTruncateLength: 256
 DiscordChatChannelTranslateMentions: true
-DiscordChatChannelPrefix: ""
+DiscordChatChannelPrefixRequiredToProcessMessage: ""
 DiscordChatChannelRolesAllowedToUseColorCodesInChat: ["Developer", "Owner", "Admin", "Moderator"]
 DiscordChatChannelBroadcastDiscordMessagesToConsole: true
 DiscordChatChannelRequireLinkedAccount: false
@@ -118,7 +127,10 @@ DiscordChatChannelRolesSelection: ["Don't show me!", "Misc role"]
 # Вы можете настроить формат всех сообщений (включая удаление временных меток) в конфигурационном файле messages.yml
 #
 # DiscordConsoleChannelLogRefreshRateInSeconds: скорость в секундах между отправкой сообщений из консоли
-# DiscordConsoleChannelUsageLog: файл, который регистрирует все команды, выполняемые пользователями в консольном канале
+# DiscordConsoleChannelUsageLog:
+#    %date%:  текущая дата
+#              пример: 2017-01-01
+#    PlaceholderAPI заполнители поддерживаются
 # DiscordConsoleChannelBlacklistActsAsWhitelist: инвертировать ли "чёрный" список команд, превращая его в "белый"
 # DiscordConsoleChannelBlacklistedCommands: фразы, заключенные в кавычки, которые пользователи не могут отправлять в виде команд в консоль
 # DiscordConsoleChannelDoNotSendPhrasesActsAsWhitelist: инвертировать ли фразы, запрещённые к отправке в белый список разрешённых фраз
@@ -128,7 +140,7 @@ DiscordChatChannelRolesSelection: ["Don't show me!", "Misc role"]
 # DiscordConsoleChannelLevels: уровни для отправки на консольный канал через логгер
 #
 DiscordConsoleChannelLogRefreshRateInSeconds: 5
-DiscordConsoleChannelUsageLog: "DiscordConsole.log"
+DiscordConsoleChannelUsageLog: "Console-%date%.log"
 DiscordConsoleChannelBlacklistActsAsWhitelist: false
 DiscordConsoleChannelBlacklistedCommands: ["?", "op", "deop", "execute"]
 DiscordConsoleChannelDoNotSendPhrasesActsAsWhitelist: false
@@ -192,7 +204,7 @@ DiscordChatChannelRegexReplacement: ""
 # ChannelTopicUpdaterRateInMinutes: число минут между автоматическим обновлением тем канала со свежей информацией
 #
 ChannelTopicUpdaterChannelTopicsAtShutdownEnabled: true
-ChannelTopicUpdaterRateInMinutes: 5
+ChannelTopicUpdaterRateInMinutes: 10
 
 # Заготовленные ответы
 # Эти триггеры (команды в некотором роде), которые будут запускать «заготовленный ответ» для отправки в ответ на них
@@ -226,33 +238,6 @@ MinecraftDiscordAccountUnlinkedConsoleCommands: ["", "", ""]
 MinecraftDiscordAccountLinkedRoleNameToAddUserTo: "Linked"
 MinecraftDiscordAccountLinkedAllowRelinkBySendingANewCode: false
 
-# Minecraft -> Discord nickname synchronization
-#
-# NicknameSynchronizationEnabled: whether or not to set the discord user's nickname to the nickname format automatically
-# NicknameSynchronizationCycleTime: amount of minutes between repeatedly triggering synchronization for all online players
-# NicknameSynchronizationFormat: the nickname format (keep in mind this shouldn't go over 32 characters)
-# %displayname%: player's display name
-#                 example: Jeb
-# %username%:    player's username
-#                 example: Jeb_
-# PlaceholderAPI placeholders are supported for the values
-#
-NicknameSynchronizationEnabled: false
-NicknameSynchronizationCycleTime: 3
-NicknameSynchronizationFormat: "%displayname%"
-
-# Синхронизация групп Minecraft -> Discord ролей
-#
-# GroupRoleSynchronizationRoleIdsToSync: это идентификаторы (IDs) ролей Discord, которые вы хотите синхронизировать из Minecraft в Discord
-#                                        Если ID роли не указан, соответствующее разрешение (discordsrv.sync. [id роли]) становится бесполезным
-#                                        Чтобы получить идентификаторы ID ролей Discord, выполните «/discord debug» и смотрите первый раздел
-# GroupRoleSynchronizationCycleTime: число минут между запуском синхронизации всех игроков онлайн
-# GroupRoleSynchronizationRemoveRolesOnUnlink: удалять или не удалять синхронизированные роли у пользователя Discord при разъединении учетных записей
-#
-GroupRoleSynchronizationRoleIdsToSync: ["000000000000000000", "000000000000000000", "000000000000000000"]
-GroupRoleSynchronizationCycleTime: 5
-GroupRoleSynchronizationRemoveRolesOnUnlink: true
-
 # Мониторинг сервера
 #
 # Мониторинг отслеживает состояние вашего сервера с момента последнего игрового такта (тика)
@@ -266,14 +251,3 @@ GroupRoleSynchronizationRemoveRolesOnUnlink: true
 ServerWatchdogEnabled: true
 ServerWatchdogTimeout: 30
 ServerWatchdogMessageCount: 3
-
-# Синхронизация заблокированных пользователей
-# Если игрок получает бан на сервере и его запись связана с Discord, вы можете дополнительно забанить его и на сервере Discord и наоборот
-#
-# BanSynchronizationDiscordToMinecraft: банить ли игрока на сервере Minecraft, если он забанен на сервере Discord
-# BanSynchronizationDiscordToMinecraftReason: сообщение, которое будет использоваться для бана игроков на сервере Minecraft
-# BanSynchronizationMinecraftToDiscord: банить ли игрока на сервере Discord, если он забанен на сервере Minecraft
-#
-BanSynchronizationDiscordToMinecraft: false
-BanSynchronizationDiscordToMinecraftReason: "&cВы забанены на нашем сервере, так как получили бан на нашем сервере Discord."
-BanSynchronizationMinecraftToDiscord: false

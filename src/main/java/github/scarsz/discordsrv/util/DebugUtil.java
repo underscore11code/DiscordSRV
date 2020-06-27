@@ -1,6 +1,6 @@
 /*
  * DiscordSRV - A Minecraft to Discord and back link plugin
- * Copyright (C) 2016-2019 Austin "Scarsz" Shapiro
+ * Copyright (C) 2016-2020 Austin "Scarsz" Shapiro
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -19,9 +19,16 @@
 package github.scarsz.discordsrv.util;
 
 import com.github.kevinsawicki.http.HttpRequest;
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.google.gson.Gson;
+import github.scarsz.configuralize.Language;
 import github.scarsz.discordsrv.DiscordSRV;
 import github.scarsz.discordsrv.api.events.DebugReportedEvent;
+import github.scarsz.discordsrv.hooks.PluginHook;
+import github.scarsz.discordsrv.hooks.SkriptHook;
+import github.scarsz.discordsrv.hooks.VaultHook;
+import github.scarsz.discordsrv.hooks.chat.ChatHook;
+import github.scarsz.discordsrv.hooks.chat.TownyChatHook;
 import github.scarsz.discordsrv.modules.voice.VoiceModule;
 import net.dv8tion.jda.api.Permission;
 import net.dv8tion.jda.api.entities.*;
@@ -44,6 +51,7 @@ import java.lang.management.ManagementFactory;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
+import java.security.InvalidKeyException;
 import java.security.SecureRandom;
 import java.util.*;
 import java.util.concurrent.*;
@@ -56,6 +64,7 @@ public class DebugUtil {
     public static final List<String> SENSITIVE_OPTIONS = Arrays.asList(
             "BotToken", "Experiment_JdbcAccountLinkBackend", "Experiment_JdbcUsername", "Experiment_JdbcPassword"
     );
+    public static int initializationCount = 0;
 
     public static String run(String requester) {
         return run(requester, 256);
@@ -64,9 +73,8 @@ public class DebugUtil {
     public static String run(String requester, int aesBits) {
         List<Map<String, String>> files = new LinkedList<>();
         try {
+            files.add(fileMap("debug-info.txt", "Potential issues in the installation", getDebugInformation()));
             files.add(fileMap("discordsrv-info.txt", "general information about the plugin", String.join("\n", new String[]{
-                    getRandomPhrase(),
-                    "",
                     "plugin version: " + DiscordSRV.getPlugin(),
                     "config version: " + DiscordSRV.config().getString("ConfigVersion"),
                     "build date: " + ManifestUtil.getManifestValue("Build-Date"),
@@ -78,14 +86,15 @@ public class DebugUtil {
                     "console channel: " + DiscordSRV.getPlugin().getConsoleChannel(),
                     "main chat channel: " + DiscordSRV.getPlugin().getMainChatChannel() + " -> " + DiscordSRV.getPlugin().getMainTextChannel(),
                     "discord guild roles: " + (DiscordSRV.getPlugin().getMainGuild() == null ? "invalid main guild" : DiscordSRV.getPlugin().getMainGuild().getRoles().stream().map(Role::toString).collect(Collectors.toList())),
-                    "defined colors: " + DiscordSRV.getPlugin().getColors(),
+                    "vault groups: " + Arrays.toString(VaultHook.getGroups()),
                     "PlaceholderAPI expansions: " + getInstalledPlaceholderApiExpansions(),
                     "/discord command executor: " + (Bukkit.getServer().getPluginCommand("discord") != null ? Bukkit.getServer().getPluginCommand("discord").getPlugin() : ""),
                     "threads:",
                     "    channel topic updater -> alive: " + (DiscordSRV.getPlugin().getChannelTopicUpdater() != null && DiscordSRV.getPlugin().getChannelTopicUpdater().isAlive()),
                     "    console message queue worker -> alive: " + (DiscordSRV.getPlugin().getConsoleMessageQueueWorker() != null && DiscordSRV.getPlugin().getConsoleMessageQueueWorker().isAlive()),
                     "    server watchdog -> alive: " + (DiscordSRV.getPlugin().getServerWatchdog() != null && DiscordSRV.getPlugin().getServerWatchdog().isAlive()),
-                    "hooked plugins: " + DiscordSRV.getPlugin().getHookedPlugins()
+                    "hooked plugins: " + DiscordSRV.getPlugin().getPluginHooks().stream().map(PluginHook::getPlugin).map(Object::toString).collect(Collectors.joining(", ")),
+                    "skripts: " + String.join(", ", SkriptHook.getSkripts())
             })));
             files.add(fileMap("relevant-lines-from-server.log", "lines from the server console containing \"discordsrv\"", getRelevantLinesFromServerLog()));
             files.add(fileMap("config.yml", "raw plugins/DiscordSRV/config.yml", FileUtils.readFileToString(DiscordSRV.getPlugin().getConfigFile(), StandardCharsets.UTF_8)));
@@ -103,8 +112,10 @@ public class DebugUtil {
                     .collect(Collectors.joining("\n"))
             ));
             files.add(fileMap("messages.yml", "raw plugins/DiscordSRV/messages.yml", FileUtils.readFileToString(DiscordSRV.getPlugin().getMessagesFile(), StandardCharsets.UTF_8)));
-            files.add(fileMap("voice.yml", "raw plugins/DiscordSRV/voice.yml", FileUtils.readFileToString(DiscordSRV.config().getProvider("voice").getSource().getFile(), StandardCharsets.UTF_8)));
-            files.add(fileMap("linking.yml", "raw plugins/DiscordSRV/linking.yml", FileUtils.readFileToString(DiscordSRV.config().getProvider("linking").getSource().getFile(), StandardCharsets.UTF_8)));
+            files.add(fileMap("voice.yml", "raw plugins/DiscordSRV/voice.yml", FileUtils.readFileToString(DiscordSRV.getPlugin().getVoiceFile(), StandardCharsets.UTF_8)));
+            files.add(fileMap("linking.yml", "raw plugins/DiscordSRV/linking.yml", FileUtils.readFileToString(DiscordSRV.getPlugin().getLinkingFile(), StandardCharsets.UTF_8)));
+            files.add(fileMap("synchronization.yml", "raw plugins/DiscordSRV/synchronization.yml", FileUtils.readFileToString(DiscordSRV.getPlugin().getSynchronizationFile(), StandardCharsets.UTF_8)));
+            files.add(fileMap("alerts.yml", "raw plugins/DiscordSRV/alerts.yml", FileUtils.readFileToString(DiscordSRV.getPlugin().getAlertsFile(), StandardCharsets.UTF_8)));
             files.add(fileMap("server-info.txt", null, getServerInfo()));
             files.add(fileMap("registered-listeners.txt", "list of registered listeners for Bukkit events DiscordSRV uses", getRegisteredListeners()));
             files.add(fileMap("permissions.txt", null, getPermissions()));
@@ -131,12 +142,6 @@ public class DebugUtil {
         map.put("content", content);
         map.put("type", "text/plain");
         return map;
-    }
-
-    private static String getRandomPhrase() {
-        return DiscordSRV.getPlugin().getRandomPhrases().size() > 0
-                ? DiscordSRV.getPlugin().getRandomPhrases().get(DiscordSRV.getPlugin().getRandom().nextInt(DiscordSRV.getPlugin().getRandomPhrases().size()))
-                : "";
     }
 
     private static Thread getServerThread() {
@@ -182,6 +187,98 @@ public class DebugUtil {
         return String.join("\n", output);
     }
 
+    private static String getDebugInformation() {
+        List<Message> messages = new ArrayList<>();
+
+        if (initializationCount > 1) {
+            messages.add(new Message(Message.Type.PLUGIN_RELOADED));
+        }
+
+        if (DiscordUtil.getJda() == null) {
+            messages.add(new Message(Message.Type.NOT_CONNECTED));
+        } else if (DiscordUtil.getJda().getGuilds().isEmpty()) {
+            messages.add(new Message(Message.Type.NOT_IN_ANY_SERVERS));
+        }
+
+        if (DiscordUtil.getJda() != null) {
+            if (DiscordSRV.getPlugin().getMainTextChannel() == null) {
+                if (DiscordSRV.getPlugin().getConsoleChannel() == null) {
+                    messages.add(new Message(Message.Type.NO_CHANNELS_LINKED));
+                } else {
+                    messages.add(new Message(Message.Type.NO_CHAT_CHANNELS_LINKED));
+                }
+            }
+
+            for (Map.Entry<String, String> entry : DiscordSRV.getPlugin().getChannels().entrySet()) {
+                TextChannel textChannel = DiscordUtil.getTextChannelById(entry.getValue());
+                if (textChannel == null) {
+                    messages.add(new Message(Message.Type.INVALID_CHANNEL, "{" + entry.getKey() + ":" + entry.getValue() + "}"));
+                    continue;
+                }
+
+                if (textChannel.getName().equals(entry.getKey())) {
+                    messages.add(new Message(Message.Type.SAME_CHANNEL_NAME, entry.getKey()));
+                }
+            }
+        }
+
+        String consoleChannelId = DiscordSRV.config().getString("DiscordConsoleChannelId");
+        if (DiscordSRV.getPlugin().getChannels().values().stream().filter(Objects::nonNull)
+                .anyMatch(channelId -> channelId.equals(consoleChannelId))) {
+            messages.add(new Message(Message.Type.CONSOLE_AND_CHAT_SAME_CHANNEL));
+        }
+
+        String roleName = DiscordSRV.config().getStringElse("MinecraftDiscordAccountLinkedRoleNameToAddUserTo", null);
+        if (DiscordUtil.getJda() != null && roleName != null) {
+            try {
+                Role role = DiscordUtil.getJda().getRolesByName(roleName, true).stream().findFirst().orElse(null);
+                if (role != null && DiscordSRV.getPlugin().getGroupSynchronizables().values().stream().anyMatch(roleId -> roleId.equals(role.getId()))) {
+                    messages.add(new Message(Message.Type.LINKED_ROLE_GROUP_SYNC));
+                }
+            } catch (Throwable ignored) {}
+        }
+
+        if (DiscordSRV.getPlugin().getChannels().size() > 1 && DiscordSRV.getPlugin().getPluginHooks().stream().noneMatch(hook -> hook instanceof ChatHook) && !DiscordSRV.api.isAnyHooked()) {
+            messages.add(new Message(Message.Type.MULTIPLE_CHANNELS_NO_HOOKS));
+        }
+
+        if (PluginUtil.pluginHookIsEnabled("TownyChat")) {
+            try {
+                String mainChannelName = TownyChatHook.getMainChannelName();
+                if (mainChannelName != null && !DiscordSRV.getPlugin().getChannels().containsKey(mainChannelName)) {
+                    messages.add(new Message(Message.Type.NO_TOWNY_MAIN_CHANNEL, mainChannelName));
+                }
+            } catch (Throwable ignored) {
+                // didn't work
+            }
+        }
+
+        if (!DiscordSRV.config().getBoolean("RespectChatPlugins")) {
+            messages.add(new Message(Message.Type.RESPECT_CHAT_PLUGINS));
+        }
+
+        if (DiscordSRV.config().getInt("DebugLevel") == 0) {
+            messages.add(new Message(Message.Type.DEBUG_MODE_NOT_ENABLED));
+        }
+
+        if (DiscordSRV.updateIsAvailable) {
+            messages.add(new Message(Message.Type.UPDATE_AVAILABLE));
+        } else if (!DiscordSRV.updateChecked || DiscordSRV.isUpdateCheckDisabled()) {
+            messages.add(new Message(Message.Type.UPDATE_CHECK_DISABLED));
+        }
+        
+        StringBuilder stringBuilder = new StringBuilder();
+        if (messages.isEmpty()) {
+            stringBuilder.append("No issues detected automatically\n");
+        } else {
+            messages.stream().sorted((one, two) -> Boolean.compare(one.isWarning(), two.isWarning())).forEach(message ->
+                    stringBuilder.append(message.isWarning() ? "[Warn] " : "[Error] ").append(message.getMessage()).append("\n"));
+        }
+        stringBuilder.append("\nFailedTests: [").append(messages.stream().map(Message::getTypeName).collect(Collectors.joining(", "))).append("]");
+
+        return stringBuilder.toString();
+    }
+
     private static String getRegisteredListeners() {
         List<String> output = new LinkedList<>();
 
@@ -198,7 +295,9 @@ public class DebugUtil {
             Class.forName("org.bukkit.event.player.PlayerAdvancementDoneEvent");
             listenedClasses.add(org.bukkit.event.player.PlayerAdvancementDoneEvent.class);
         } catch (ClassNotFoundException ignored) {
-            listenedClasses.add(org.bukkit.event.player.PlayerAchievementAwardedEvent.class);
+            try {
+                listenedClasses.add(Class.forName("org.bukkit.event.player.PlayerAchievementAwardedEvent"));
+            } catch (ClassNotFoundException alsoIgnored) {}
         }
 
         for (Class<?> listenedClass : listenedClasses) {
@@ -216,6 +315,7 @@ public class DebugUtil {
 
                 HandlerList handlerList = (HandlerList) getHandlerList.invoke(null);
                 List<RegisteredListener> registeredListeners = Arrays.stream(handlerList.getRegisteredListeners())
+                        .filter(registeredListener -> !registeredListener.getPlugin().getName().equalsIgnoreCase("DiscordSRV"))
                         .sorted(Comparator.comparing(RegisteredListener::getPriority)).collect(Collectors.toList());
 
                 if (registeredListeners.isEmpty()) {
@@ -242,6 +342,10 @@ public class DebugUtil {
 
     private static String getPermissions() {
         List<String> output = new LinkedList<>();
+
+        if (DiscordUtil.getJda() == null) {
+            return "JDA == null";
+        }
 
         Guild mainGuild = DiscordSRV.getPlugin().getMainGuild();
         if (mainGuild == null) {
@@ -287,7 +391,7 @@ public class DebugUtil {
         }
 
         DiscordSRV.getPlugin().getChannels().forEach((channel, textChannelId) -> {
-            TextChannel textChannel = textChannelId != null ? DiscordSRV.getPlugin().getJda().getTextChannelById(textChannelId) : null;
+            TextChannel textChannel = StringUtils.isNotBlank(textChannelId) ? DiscordSRV.getPlugin().getJda().getTextChannelById(textChannelId) : null;
             if (textChannel != null) {
                 List<String> outputForChannel = new LinkedList<>();
                 if (DiscordUtil.checkPermission(textChannel, Permission.MESSAGE_READ)) outputForChannel.add("read");
@@ -324,15 +428,19 @@ public class DebugUtil {
 
         // drive space
         File serverRoot = DiscordSRV.getPlugin().getDataFolder().getAbsoluteFile().getParentFile().getParentFile();
-        output.add("server directory " + serverRoot.getAbsolutePath());
+        output.add("Server storage:");
         output.add("- total space (MB): " + serverRoot.getTotalSpace() / 1024 / 1024);
         output.add("- free space (MB): " + serverRoot.getFreeSpace() / 1024 / 1024);
         output.add("- usable space (MB): " + serverRoot.getUsableSpace() / 1024 / 1024);
         output.add("");
 
-        // system properties
-        output.add("System properties:");
-        ManagementFactory.getRuntimeMXBean().getSystemProperties().forEach((key, value) -> output.add("    " + key + "=" + value));
+        // java version
+        Map<String, String> systemProperties = ManagementFactory.getRuntimeMXBean().getSystemProperties();
+        output.add("Java version: " + systemProperties.get("java.version"));
+        output.add("Java vendor: " + systemProperties.get("java.vendor") + " " + systemProperties.get("java.vendor.url"));
+        output.add("Java home: " + systemProperties.get("java.home"));
+        output.add("Command line: " + systemProperties.get("sun.java.command"));
+        output.add("Time zone: " + systemProperties.get("user.timezone"));
 
         return String.join("\n", output);
     }
@@ -369,7 +477,8 @@ public class DebugUtil {
             map.put("content", content);
         });
 
-        ExecutorService executor = Executors.newSingleThreadExecutor();
+        final ThreadFactory threadFactory = new ThreadFactoryBuilder().setNameFormat("DiscordSRV - Debug Report Upload").build();
+        final ExecutorService executor = Executors.newSingleThreadExecutor(threadFactory);
         try {
             return executor.invokeAny(Collections.singletonList(() -> {
                 try {
@@ -385,6 +494,10 @@ public class DebugUtil {
             DiscordSRV.error("Interrupted while uploading a debug report");
             return "ERROR/Interrupted while uploading the debug report";
         } catch (ExecutionException | TimeoutException e) {
+            if (e instanceof ExecutionException && e.getCause().getMessage().toLowerCase().contains("illegal key size")) {
+                return "ERROR/" + e.getCause().getMessage() + ". Try using /discordsrv debug 128";
+            }
+
             File debugFolder = DiscordSRV.getPlugin().getDebugFolder();
             if (!debugFolder.exists()) debugFolder.mkdir();
 
@@ -408,7 +521,8 @@ public class DebugUtil {
                         + e.getCause().getMessage() + " and " + ex.getClass().getName() + ": " + ex.getMessage();
             }
 
-            return "GENERATED TO FILE/Failed to upload to bin.scarsz.me, placed into plugins/DiscordSRV/debug/" + debugName + ". Caused by " + e.getCause().getMessage();
+            return "GENERATED TO FILE/Failed to upload to bin.scarsz.me, placed into plugins/DiscordSRV/debug/" + debugName
+                    + ". Caused by " + (e instanceof ExecutionException ? e.getCause().getMessage() : e.getMessage());
         }
     }
 
@@ -489,10 +603,78 @@ public class DebugUtil {
             cipher.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(key, "AES"), new IvParameterSpec(iv));
             byte[] encrypted = cipher.doFinal(data);
             return ArrayUtils.addAll(iv, encrypted);
+        } catch (InvalidKeyException e) {
+            if (e.getMessage().toLowerCase().contains("illegal key size")) {
+                throw new RuntimeException(e.getMessage(), e);
+            } else {
+                e.printStackTrace();
+            }
+            return null;
         } catch (Exception ex) {
             ex.printStackTrace();
             return null;
         }
+    }
+
+    public static class Message {
+
+        private final Type type;
+        private final String[] args;
+
+        public Message(Type type, String... args) {
+            this.type = type;
+            this.args = args;
+        }
+
+        private boolean isWarning() {
+            return type.warning;
+        }
+
+        @SuppressWarnings("RedundantCast") // it in fact isn't
+        public String getMessage() {
+            return String.format(type.message, (Object[]) args);
+        }
+
+        public String getTypeName() {
+            return type.name();
+        }
+
+        public enum Type {
+
+            // Warnings
+            NO_CHAT_CHANNELS_LINKED(true, "No chat channels linked"),
+            NO_CHANNELS_LINKED(true, "No channels linked (chat & console)"),
+            SAME_CHANNEL_NAME(true, "Channel %s has the same in-game and Discord channel name"),
+            MULTIPLE_CHANNELS_NO_HOOKS(true, "Multiple chat channels, but no (chat) plugin hooks"),
+            RESPECT_CHAT_PLUGINS(true, "You have RespectChatPlugins set to false. This means DiscordSRV will completely ignore " +
+                    "any other plugin's attempts to cancel a chat message from being broadcasted to the server. " +
+                    "Disabling this is NOT a valid solution to your chat messages not being sent to Discord."
+            ),
+            UPDATE_CHECK_DISABLED(true, "Update checking is disabled"),
+
+            // Errors
+            PLUGIN_RELOADED(false, "Plugin has been initialized more than once (aka \"reloading\"). You will not receive support in this state."),
+            INVALID_CHANNEL(false, "Invalid Channel %s (not found)"),
+            NO_TOWNY_MAIN_CHANNEL(false, "No channel hooked to Towny's default channel: %s"),
+            CONSOLE_AND_CHAT_SAME_CHANNEL(false, LangUtil.InternalMessage.CONSOLE_CHANNEL_ASSIGNED_TO_LINKED_CHANNEL.getDefinitions().get(Language.EN)),
+            NOT_IN_ANY_SERVERS(false, LangUtil.InternalMessage.BOT_NOT_IN_ANY_SERVERS.getDefinitions().get(Language.EN)),
+            NOT_CONNECTED(false, "Not connected to Discord!"),
+            DEBUG_MODE_NOT_ENABLED(false, "You do not have debug mode on. Set DebugLevel to 1 in config.yml, run /discordsrv reload, " +
+                    "try to reproduce your problem and create another debug report."
+            ),
+            UPDATE_AVAILABLE(false, "Update available. Download: https://get.discordsrv.com / https://snapshot.discordsrv.com"),
+            LINKED_ROLE_GROUP_SYNC(false, "Cannot have the role in MinecraftDiscordAccountLinkedRoleNameToAddUserTo as a role in GroupRoleSynchronizationGroupsAndRolesToSync");
+
+            private final boolean warning;
+            private final String message;
+
+            Type(boolean warning, String message) {
+                this.warning = warning;
+                this.message = message;
+            }
+
+        }
+
     }
 
 }

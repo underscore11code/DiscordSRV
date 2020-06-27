@@ -1,6 +1,6 @@
 /*
  * DiscordSRV - A Minecraft to Discord and back link plugin
- * Copyright (C) 2016-2019 Austin "Scarsz" Shapiro
+ * Copyright (C) 2016-2020 Austin "Scarsz" Shapiro
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -24,11 +24,15 @@ import org.bukkit.Bukkit;
 
 public class UpdateUtil {
 
+    public static boolean checkForUpdates() {
+        return checkForUpdates(true);
+    }
+
     /**
      * Check the build hash of DiscordSRV against the latest hashes from GitHub
      * @return boolean indicating if an update to DiscordSRV is available
      */
-    public static boolean checkForUpdates() {
+    public static boolean checkForUpdates(boolean verbose) {
         try {
             String buildHash = ManifestUtil.getManifestValue("Git-Revision");
 
@@ -78,7 +82,7 @@ public class UpdateUtil {
                     printUpdateMessage("The current build of DiscordSRV is outdated by " + masterComparisonResult.get("behind_by").getAsInt() + " commits!");
                     return true;
                 case "identical":
-                    DiscordSRV.info("DiscordSRV is up-to-date. (" + buildHash + ")");
+                    if (verbose) DiscordSRV.info("DiscordSRV is up-to-date. (" + buildHash + ")");
                     return false;
                 default:
                     DiscordSRV.warning("Got weird build comparison status from GitHub: " + masterStatus + ". Assuming plugin is up-to-date.");

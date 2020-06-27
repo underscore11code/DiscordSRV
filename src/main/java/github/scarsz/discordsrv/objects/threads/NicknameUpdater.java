@@ -1,3 +1,21 @@
+/*
+ * DiscordSRV - A Minecraft to Discord and back link plugin
+ * Copyright (C) 2016-2020 Austin "Scarsz" Shapiro
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+
 package github.scarsz.discordsrv.objects.threads;
 
 import github.scarsz.discordsrv.DiscordSRV;
@@ -14,7 +32,7 @@ import java.util.concurrent.TimeUnit;
 public class NicknameUpdater extends Thread {
 
     public NicknameUpdater() {
-        setName("DiscordSRV - Nickname updater");
+        setName("DiscordSRV - Nickname Updater");
     }
 
     @Override
@@ -25,6 +43,18 @@ public class NicknameUpdater extends Thread {
 
             if (DiscordSRV.config().getBoolean("NicknameSynchronizationEnabled")) {
                 DiscordSRV.debug("Synchronizing nicknames...");
+
+                // Fix NPE with AccountLinkManager
+                if (!DiscordSRV.isReady) {
+                    try {
+                        Thread.sleep(TimeUnit.MINUTES.toMillis(rate));
+                    } catch (InterruptedException ignored) {
+                        DiscordSRV.debug("Broke from Nickname Updater thread: sleep interrupted");
+                        return;
+                    }
+                    continue;
+                }
+
                 for (Player onlinePlayer : PlayerUtil.getOnlinePlayers()) {
                     String userId = DiscordSRV.getPlugin().getAccountLinkManager().getDiscordId(onlinePlayer.getUniqueId());
                     if (userId == null) continue;

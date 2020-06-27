@@ -1,6 +1,6 @@
 /*
  * DiscordSRV - A Minecraft to Discord and back link plugin
- * Copyright (C) 2016-2019 Austin "Scarsz" Shapiro
+ * Copyright (C) 2016-2020 Austin "Scarsz" Shapiro
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -22,6 +22,7 @@ import dev.vankka.mcdiscordreserializer.discord.DiscordSerializer;
 import github.scarsz.discordsrv.DiscordSRV;
 import github.scarsz.discordsrv.util.DiscordUtil;
 import github.scarsz.discordsrv.util.LangUtil;
+import github.scarsz.discordsrv.util.PlaceholderUtil;
 import net.dv8tion.jda.api.entities.TextChannel;
 import net.kyori.text.serializer.legacy.LegacyComponentSerializer;
 import org.apache.commons.lang3.ArrayUtils;
@@ -67,9 +68,12 @@ public class CommandBroadcast {
             sender.sendMessage(ChatColor.RED + LangUtil.InternalMessage.NO_MESSAGE_GIVEN_TO_BROADCAST.toString());
         } else {
             String rawMessage = String.join(" ", finalArgs);
+            rawMessage = PlaceholderUtil.replacePlaceholdersToDiscord(rawMessage);
+            if (DiscordSRV.config().getBoolean("DiscordChatChannelTranslateMentions"))
+                rawMessage = DiscordUtil.convertMentionsFromNames(rawMessage, DiscordSRV.getPlugin().getMainGuild());
 
             if (DiscordSRV.config().getBoolean("Experiment_MCDiscordReserializer_InBroadcast")) {
-                DiscordUtil.sendMessage(target, DiscordSerializer.INSTANCE.serialize(LegacyComponentSerializer.INSTANCE.deserialize(rawMessage)));
+                DiscordUtil.sendMessage(target, DiscordSerializer.INSTANCE.serialize(LegacyComponentSerializer.legacy().deserialize(rawMessage)));
             } else {
                 DiscordUtil.sendMessage(target, rawMessage);
             }

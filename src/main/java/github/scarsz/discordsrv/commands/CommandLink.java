@@ -1,6 +1,6 @@
 /*
  * DiscordSRV - A Minecraft to Discord and back link plugin
- * Copyright (C) 2016-2019 Austin "Scarsz" Shapiro
+ * Copyright (C) 2016-2020 Austin "Scarsz" Shapiro
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -21,6 +21,13 @@ package github.scarsz.discordsrv.commands;
 import github.scarsz.discordsrv.DiscordSRV;
 import github.scarsz.discordsrv.objects.managers.AccountLinkManager;
 import github.scarsz.discordsrv.util.LangUtil;
+import net.kyori.text.TextComponent;
+import net.kyori.text.adapter.bukkit.TextAdapter;
+import net.kyori.text.event.ClickEvent;
+import net.kyori.text.event.HoverEvent;
+import net.kyori.text.serializer.legacy.LegacyComponentSerializer;
+import org.apache.commons.lang3.StringUtils;
+import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.entity.Player;
 
@@ -39,6 +46,10 @@ public class CommandLink {
             return;
         }
 
+        Bukkit.getScheduler().runTaskAsynchronously(DiscordSRV.getPlugin(), () -> executeAsync(sender, manager));
+    }
+
+    private static void executeAsync(Player sender, AccountLinkManager manager) {
         // prevent people from generating multiple link codes then claiming them all at once to get multiple rewards
         new ArrayList<>(manager.getLinkingCodes().entrySet()).stream()
                 .filter(entry -> entry.getValue().equals(sender.getUniqueId()))
@@ -49,10 +60,36 @@ public class CommandLink {
         } else {
             String code = manager.generateCode(sender.getUniqueId());
 
-            sender.sendMessage(LangUtil.Message.CODE_GENERATED.toString()
-                    .replace("%code%", code)
-                    .replace("%botname%", DiscordSRV.getPlugin().getMainGuild().getSelfMember().getEffectiveName())
+            TextComponent component = LegacyComponentSerializer.legacyLinking().deserialize(
+                    LangUtil.Message.CODE_GENERATED.toString()
+                            .replace("%code%", code)
+                            .replace("%botname%", DiscordSRV.getPlugin().getMainGuild().getSelfMember().getEffectiveName()),
+                    '&'
             );
+            String clickToCopyCode = LangUtil.Message.CLICK_TO_COPY_CODE.toString();
+            if (StringUtils.isNotBlank(clickToCopyCode)) {
+                component = component.clickEvent(ClickEvent.copyToClipboard(code))
+                        .hoverEvent(HoverEvent.showText(
+                                LegacyComponentSerializer.legacy().deserialize(
+                                        clickToCopyCode,
+                                        '&'
+                                )
+                        ));
+            }
+
+            try {
+                TextAdapter.sendComponent(sender, component);
+            } catch (NoSuchMethodError e) {
+                if (e.getMessage().contains("kyori.text")) {
+                    sender.sendMessage(
+                            LangUtil.Message.CODE_GENERATED.toString(true)
+                                    .replace("%code%", code)
+                                    .replace("%botname%", DiscordSRV.getPlugin().getMainGuild().getSelfMember().getEffectiveName())
+                    );
+                } else {
+                    throw e;
+                }
+            }
         }
     }
 
